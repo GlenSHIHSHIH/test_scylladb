@@ -1,0 +1,8 @@
+scylla:
+  hosts:
+    - "127.0.0.1:9042"
+    - "127.0.0.1:9043"
+    - "127.0.0.1:9044"
+  keyspace: "test_keyspace"
+  username: "admin"
+  password: "admin123"
