@@ -7,6 +7,7 @@ import (
 	"test_scylla/internal/tracing"
 	"time"
 
+	"github.com/gocql/gocql"
 	"github.com/scylladb/gocqlx/v2"
 )
 
@@ -25,6 +26,22 @@ func NewUserRepository() *UserRepository {
 func (r *UserRepository) CreateUser(user *models.User) error {
 	q := r.session.Query(models.UserTable.Insert()).BindStruct(user)
 	return q.ExecRelease()
+}
+
+// CreateUsersBatch 批量建立使用者記錄
+func (r *UserRepository) CreateUsersBatch(users []models.User) error {
+	if len(users) == 0 {
+		return nil
+	}
+
+	insertStmt, _ := models.UserTable.Insert()
+	batch := r.session.Session.NewBatch(gocql.LoggedBatch)
+
+	for _, user := range users {
+		batch.Query(insertStmt, user.UserID, user.TimeBucket, user.Username, user.Email, user.CreatedAt)
+	}
+
+	return r.session.Session.ExecuteBatch(batch)
 }
 
 // CreateUserWithTracing 建立新使用者記錄，同時收集 tracing 資訊

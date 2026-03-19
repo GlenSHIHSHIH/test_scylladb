@@ -19,25 +19,40 @@ func initTestDB(t *testing.T) {
 	database.InitScylla(cfg.Scylla.Hosts, cfg.Scylla.Keyspace, cfg.Scylla.Username, cfg.Scylla.Password)
 }
 
-// 初始化 ScyllaDB 連線 (包含 3 個本地埠號)
-var hosts = []string{"127.0.0.1:9042", "127.0.0.1:9043", "127.0.0.1:9044"}
-var keyspace = "test_keyspace"
-
-// TestCreateUser 測試單筆使用者寫入 (直接呼叫 Repository)
-func TestCreateUserDirect(t *testing.T) {
+// TestCreateAndGetUserDirect 測試單筆使用者寫入與查詢 (直接呼叫 Repository)
+func TestCreateAndGetUserDirect(t *testing.T) {
 	initTestDB(t)
 	repo := repository.NewUserRepository()
 
+	createdAt := time.Date(2026, 3, 19, 6, 48, 13, 28, time.UTC)
 	user := models.User{
 		UserID:     "test_user_direct",
 		TimeBucket: "2024031816",
 		Username:   "tester_direct",
 		Email:      "test_direct@example.com",
-		CreatedAt:  time.Now(),
+		CreatedAt:  createdAt,
 	}
 
 	if err := repo.CreateUser(&user); err != nil {
-		t.Errorf("Failed to create user directly: %v", err)
+		t.Fatalf("Failed to create user directly: %v", err)
+	}
+
+	got, err := repo.GetUser(user.UserID, user.TimeBucket, user.CreatedAt)
+	if err != nil {
+		t.Fatalf("Failed to get user directly: %v", err)
+	}
+
+	if got.UserID != user.UserID {
+		t.Errorf("Expected UserID %s, got %s", user.UserID, got.UserID)
+	}
+	if got.TimeBucket != user.TimeBucket {
+		t.Errorf("Expected TimeBucket %s, got %s", user.TimeBucket, got.TimeBucket)
+	}
+	if got.Username != user.Username {
+		t.Errorf("Expected Username %s, got %s", user.Username, got.Username)
+	}
+	if got.Email != user.Email {
+		t.Errorf("Expected Email %s, got %s", user.Email, got.Email)
 	}
 }
 
@@ -63,33 +78,29 @@ func TestBatchInsert50Users(t *testing.T) {
 		"2026031418", // 小時級別 18:00
 	}
 
-	successCount := 0
-	failCount := 0
 	total := len(userIDs) * len(timeBuckets)
+	users := make([]models.User, 0, total)
+	baseTime := time.Now().UTC()
 
 	for i, uid := range userIDs {
 		for j, bucket := range timeBuckets {
-			user := models.User{
+			users = append(users, models.User{
 				UserID:     uid,
 				TimeBucket: bucket,
 				Username:   fmt.Sprintf("user_%d_%d", i, j),
 				Email:      fmt.Sprintf("user_%d_%d@example.com", i, j),
-				CreatedAt:  time.Now(),
-			}
-
-			if err := repo.CreateUser(&user); err == nil {
-				successCount++
-			} else {
-				failCount++
-				t.Logf("Failed to insert user %s bucket %s: %v", uid, bucket, err)
-			}
+				CreatedAt:  baseTime.Add(time.Duration(i*len(timeBuckets)+j) * time.Millisecond),
+			})
 		}
 	}
 
-	t.Logf("Batch insert complete: %d success, %d failed (total %d)", successCount, failCount, total)
+	if err := repo.CreateUsersBatch(users); err != nil {
+		t.Fatalf("Failed to batch insert users: %v", err)
+	}
 
-	if successCount != total {
-		t.Errorf("Expected %d successful inserts, got %d", total, successCount)
+	t.Logf("Batch insert complete: %d success, %d failed (total %d)", len(users), 0, total)
+	if len(users) != total {
+		t.Errorf("Expected %d users prepared for batch insert, got %d", total, len(users))
 	}
 }
 
@@ -100,9 +111,16 @@ func TestCreateUserWithTracing(t *testing.T) {
 
 	// 準備多筆資料，觀察不同 partition key 的 node 分佈
 	testCases := []models.User{
-		{UserID: "trace_user_001", TimeBucket: "2026033820", Username: "tracer_1", Email: "tracer1@test.com"},
-		{UserID: "trace_user_002", TimeBucket: "2026032820", Username: "tracer_2", Email: "tracer2@test.com"},
-		{UserID: "trace_user_003", TimeBucket: "2026031820", Username: "tracer_3", Email: "tracer3@test.com"},
+		{UserID: "trace_user_001", TimeBucket: "201801010", Username: "tracer_1", Email: "tracer1@test.com"},
+		{UserID: "trace_user_002", TimeBucket: "201913123", Username: "tracer_2", Email: "tracer2@test.com"},
+		{UserID: "trace_user_003", TimeBucket: "2021031508", Username: "tracer_3", Email: "tracer3@test.com"},
+		{UserID: "trace_user_004", TimeBucket: "202200416", Username: "tracer_4", Email: "tracer4@test.com"},
+		{UserID: "trace_user_005", TimeBucket: "2023122506", Username: "tracer_5", Email: "tracer5@test.com"},
+		{UserID: "trace_user_006", TimeBucket: "202510112", Username: "tracer_6", Email: "tracer6@test.com"},
+		{UserID: "trace_user_007", TimeBucket: "2026111119", Username: "tracer_7", Email: "tracer7@test.com"},
+		{UserID: "trace_user_008", TimeBucket: "202807203", Username: "tracer_8", Email: "tracer8@test.com"},
+		{UserID: "trace_user_009", TimeBucket: "2030021414", Username: "tracer_9", Email: "tracer9@test.com"},
+		{UserID: "trace_user_010", TimeBucket: "203512319", Username: "tracer_10", Email: "tracer10@test.com"},
 	}
 
 	for _, user := range testCases {
@@ -115,7 +133,7 @@ func TestCreateUserWithTracing(t *testing.T) {
 		}
 
 		if traceResult != nil {
-			t.Logf("\n📍 User: %s | Bucket: %s | Coordinator: %s | Replicas: %v", 
+			t.Logf("\n📍 User: %s | Bucket: %s | Coordinator: %s | Replicas: %v",
 				user.UserID, user.TimeBucket, traceResult.Coordinator, traceResult.ReplicaNodes)
 		} else {
 			t.Errorf("Tracing result is nil for user %s", user.UserID)
@@ -131,20 +149,20 @@ func TestListUsersByBucket(t *testing.T) {
 	userID := "list_test_user_direct"
 	bucket := "20260318"
 
-	// 1. 寫入 3 筆測試資料到同一個分區 (Partition)
+	// 1. 準備 3 筆測試資料到同一個分區 (Partition)，以批量方式寫入
+	baseTime := time.Now().UTC()
+	seedUsers := make([]models.User, 0, 3)
 	for i := 1; i <= 3; i++ {
-		user := models.User{
+		seedUsers = append(seedUsers, models.User{
 			UserID:     userID,
 			TimeBucket: bucket,
 			Username:   fmt.Sprintf("list_user_%d", i),
 			Email:      fmt.Sprintf("list%d@test.com", i),
-			CreatedAt:  time.Now(),
-		}
-		if err := repo.CreateUser(&user); err != nil {
-			t.Fatalf("Failed to seed test data: %v", err)
-		}
-		// 稍微延遲以確保 created_at 有順序差異
-		time.Sleep(10 * time.Millisecond)
+			CreatedAt:  baseTime.Add(time.Duration(i) * 10 * time.Millisecond),
+		})
+	}
+	if err := repo.CreateUsersBatch(seedUsers); err != nil {
+		t.Fatalf("Failed to seed test data by batch insert: %v", err)
 	}
 
 	// 2. 測試查詢，並設定 Limit = 2

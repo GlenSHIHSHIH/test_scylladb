@@ -11,6 +11,16 @@ services:
       - ${SCYLLA_MEMORY}
       - --overprovisioned
       - ${SCYLLA_OVERPROVISIONED}
+      - --seed-provider-parameters
+      - seeds=${SCYLLA_SEEDS}
+      - --listen-address
+      - 0.0.0.0
+      - --broadcast-address
+      - scylla-1
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - scylla-1
     ports:
       - "9042:9042"
     healthcheck:
@@ -35,6 +45,8 @@ services:
   scylla-2:
     image: scylladb/scylla:6.0.2
     container_name: scylla-2
+    depends_on:
+      - scylla-1
     command:
       - --reactor-backend
       - ${SCYLLA_REACTOR_BACKEND}
@@ -44,6 +56,16 @@ services:
       - ${SCYLLA_MEMORY}
       - --overprovisioned
       - ${SCYLLA_OVERPROVISIONED}
+      - --seed-provider-parameters
+      - seeds=${SCYLLA_SEEDS}
+      - --listen-address
+      - 0.0.0.0
+      - --broadcast-address
+      - scylla-2
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - scylla-2
     ports:
       - "9043:9042"
     volumes:
@@ -55,6 +77,8 @@ services:
   scylla-3:
     image: scylladb/scylla:6.0.2
     container_name: scylla-3
+    depends_on:
+      - scylla-1
     command:
       - --reactor-backend
       - ${SCYLLA_REACTOR_BACKEND}
@@ -64,6 +88,16 @@ services:
       - ${SCYLLA_MEMORY}
       - --overprovisioned
       - ${SCYLLA_OVERPROVISIONED}
+      - --seed-provider-parameters
+      - seeds=${SCYLLA_SEEDS}
+      - --listen-address
+      - 0.0.0.0
+      - --broadcast-address
+      - scylla-3
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - scylla-3
     ports:
       - "9044:9042"
     volumes:

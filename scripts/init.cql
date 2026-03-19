@@ -3,7 +3,7 @@ CREATE USER IF NOT EXISTS admin WITH PASSWORD 'admin123' SUPERUSER;
 
 -- 建立 Keyspace (若不存在)
 CREATE KEYSPACE IF NOT EXISTS test_keyspace 
-WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};
 
 -- 建立 Users 資料表，改用複合分區鍵 (Time Bucket 設計)
 CREATE TABLE IF NOT EXISTS test_keyspace.users (

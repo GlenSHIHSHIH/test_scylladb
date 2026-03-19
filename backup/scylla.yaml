@@ -100,7 +100,7 @@ seed_provider:
 # If you leave broadcast_address (below) empty, then setting listen_address
 # to 0.0.0.0 is wrong as other nodes will not know how to reach this node.
 # If you set broadcast_address, then you can set listen_address to 0.0.0.0.
-listen_address: localhost
+listen_address: 0.0.0.0
 
 # Address to broadcast to other Scylla nodes
 # Leaving this blank will set it to the same value as listen_address
@@ -217,7 +217,7 @@ endpoint_snitch: SimpleSnitch
 # you can specify which should be chosen using rpc_interface_prefer_ipv6. If false the first ipv4
 # address will be used. If true the first ipv6 address will be used. Defaults to false preferring
 # ipv4. If there is only one address it will be selected regardless of ipv4/ipv6.
-rpc_address: localhost
+rpc_address: 0.0.0.0
 # rpc_interface: eth1
 # rpc_interface_prefer_ipv6: false
 
