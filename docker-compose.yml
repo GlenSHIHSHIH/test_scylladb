@@ -1,40 +1,74 @@
-version: "3.8"
-
 services:
   scylla-1:
     image: scylladb/scylla:6.0.2
     container_name: scylla-1
+    command:
+      - --reactor-backend
+      - ${SCYLLA_REACTOR_BACKEND}
+      - --smp
+      - ${SCYLLA_SMP}
+      - --memory
+      - ${SCYLLA_MEMORY}
+      - --overprovisioned
+      - ${SCYLLA_OVERPROVISIONED}
     ports:
       - "9042:9042"
     healthcheck:
       test:
         - CMD-SHELL
         - |
-          HOST="$$(hostname -i | awk '{print $$1}')";
-          cqlsh -u "$$SCYLLA_INIT_USER" -p "$$SCYLLA_INIT_PASSWORD" -e 'DESCRIBE CLUSTER' "$$HOST" 9042 >/dev/null 2>&1 ||
-          cqlsh -u "$$SCYLLA_USER" -p "$$SCYLLA_PASSWORD" -e 'DESCRIBE CLUSTER' "$$HOST" 9042 >/dev/null 2>&1
+          if [ -f /state/init.done ]; then
+            cqlsh -u "$$SCYLLA_USER" -p "$$SCYLLA_PASSWORD" -e 'DESCRIBE CLUSTER' scylla-1 9042 >/dev/null 2>&1;
+          else
+            cqlsh -u "$$SCYLLA_INIT_USER" -p "$$SCYLLA_INIT_PASSWORD" -e 'DESCRIBE CLUSTER' scylla-1 9042 >/dev/null 2>&1;
+          fi
       interval: 10s
       timeout: 5s
       retries: 15
-    env_file: 
+    volumes:
+      - ./temp/state:/state
+      - ./backup/scylla.yaml:/etc/scylla/scylla.yaml:ro
+    env_file:
       - .env
       - .env.secrets
 
   scylla-2:
     image: scylladb/scylla:6.0.2
     container_name: scylla-2
+    command:
+      - --reactor-backend
+      - ${SCYLLA_REACTOR_BACKEND}
+      - --smp
+      - ${SCYLLA_SMP}
+      - --memory
+      - ${SCYLLA_MEMORY}
+      - --overprovisioned
+      - ${SCYLLA_OVERPROVISIONED}
     ports:
       - "9043:9042"
-    env_file: 
+    volumes:
+      - ./backup/scylla.yaml:/etc/scylla/scylla.yaml:ro
+    env_file:
       - .env
       - .env.secrets
 
   scylla-3:
     image: scylladb/scylla:6.0.2
     container_name: scylla-3
+    command:
+      - --reactor-backend
+      - ${SCYLLA_REACTOR_BACKEND}
+      - --smp
+      - ${SCYLLA_SMP}
+      - --memory
+      - ${SCYLLA_MEMORY}
+      - --overprovisioned
+      - ${SCYLLA_OVERPROVISIONED}
     ports:
       - "9044:9042"
-    env_file: 
+    volumes:
+      - ./backup/scylla.yaml:/etc/scylla/scylla.yaml:ro
+    env_file:
       - .env
       - .env.secrets
 
@@ -46,21 +80,23 @@ services:
         condition: service_healthy
     volumes:
       - ./scripts/init.cql:/init.cql
-      - scylla-init-state:/state
-    env_file: 
+      - ./temp/state:/state
+    env_file:
       - .env
       - .env.secrets
     entrypoint:
       - sh
       - -c
       - |
+        set -e;
         if [ -f /state/init.done ]; then
           echo "[scylla-init] init already done, skip.";
           exit 0;
         fi;
         echo "[scylla-init] running init.cql...";
-        touch /state/init.done;
         cqlsh -u "$$SCYLLA_INIT_USER" -p "$$SCYLLA_INIT_PASSWORD" scylla-1 -f /init.cql;
-
-volumes:
-  scylla-init-state:
+        echo "[scylla-init] dropping default cassandra user...";
+        cqlsh -u "$$SCYLLA_USER" -p "$$SCYLLA_PASSWORD" scylla-1 -e "DROP USER IF EXISTS cassandra;";
+        touch /state/init.done;
+        echo "[scylla-init] init completed." >> /state/init.done;
+    tty: true

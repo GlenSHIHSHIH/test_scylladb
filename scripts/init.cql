@@ -1,9 +1,6 @@
 -- 建立管理員帳號 (admin/admin123)
 CREATE USER IF NOT EXISTS admin WITH PASSWORD 'admin123' SUPERUSER;
 
--- 移除預設超級管理員 (安全性強化)
-DROP USER IF EXISTS cassandra;
-
 -- 建立 Keyspace (若不存在)
 CREATE KEYSPACE IF NOT EXISTS test_keyspace 
 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
